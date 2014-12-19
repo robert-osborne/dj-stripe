@@ -69,6 +69,11 @@ TRIAL_PERIOD_FOR_USER_CALLBACK = getattr(
     "DJSTRIPE_TRIAL_PERIOD_FOR_USER_CALLBACK",
     None
 )
+INVOICE_EMAIL_FUNCTION = getattr(
+    settings,
+    "DJSTRIPE_INVOICE_EMAIL_FUNCTION",
+    None
+)
 PLAN_LIST = []
 for p in PAYMENTS_PLANS:
     if PAYMENTS_PLANS[p].get("stripe_plan_id"):
@@ -81,10 +86,18 @@ if PY3:
         TRIAL_PERIOD_FOR_USER_CALLBACK = load_path_attr(
             TRIAL_PERIOD_FOR_USER_CALLBACK
         )
+    if isinstance(INVOICE_EMAIL_FUNCTION, str):
+        INVOICE_EMAIL_FUNCTION = load_path_attr(
+            INVOICE_EMAIL_FUNCTION
+        )
 else:
     if isinstance(TRIAL_PERIOD_FOR_USER_CALLBACK, basestring):
         TRIAL_PERIOD_FOR_USER_CALLBACK = load_path_attr(
             TRIAL_PERIOD_FOR_USER_CALLBACK
+        )
+    if isinstance(INVOICE_EMAIL_FUNCTION, basestring):
+        INVOICE_EMAIL_FUNCTION = load_path_attr(
+            INVOICE_EMAIL_FUNCTION
         )
 
 DJSTRIPE_WEBHOOK_URL = getattr(

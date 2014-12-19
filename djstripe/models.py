@@ -21,7 +21,8 @@ import stripe
 from . import exceptions
 from .managers import CustomerManager, ChargeManager, TransferManager
 
-from .settings import PAYMENTS_PLANS, INVOICE_FROM_EMAIL, SEND_INVOICE_RECEIPT_EMAILS
+from .settings import PAYMENTS_PLANS, SEND_INVOICE_RECEIPT_EMAILS
+from .settings import INVOICE_FROM_EMAIL, INVOICE_EMAIL_FUNCTION 
 from .settings import PRORATION_POLICY, CANCELLATION_AT_PERIOD_END
 from .settings import plan_from_stripe_id
 from .settings import PY3
@@ -569,7 +570,7 @@ class Customer(StripeObject):
             self.send_invoice()
         subscription_made.send(sender=self, plan=plan, stripe_response=resp)
 
-    def charge(self, amount, currency="usd", description=None, send_receipt=True):
+    def charge(self, amount, currency="usd", description=None, send_receipt=True, metadata=None):
         """
         This method expects `amount` to be a Decimal type representing a
         dollar amount. It will be converted to cents so any decimals beyond
@@ -584,6 +585,7 @@ class Customer(StripeObject):
             currency=currency,
             customer=self.stripe_id,
             description=description,
+            metadata=metadata,
         )
         obj = self.record_charge(resp["id"])
         if send_receipt:
@@ -870,22 +872,25 @@ class Charge(StripeObject):
 
     def send_receipt(self):
         if not self.receipt_sent:
-            site = Site.objects.get_current()
-            protocol = getattr(settings, "DEFAULT_HTTP_PROTOCOL", "http")
-            ctx = {
-                "charge": self,
-                "site": site,
-                "protocol": protocol,
-            }
-            subject = render_to_string("djstripe/email/subject.txt", ctx)
-            subject = subject.strip()
-            message = render_to_string("djstripe/email/body.txt", ctx)
-            num_sent = EmailMessage(
-                subject,
-                message,
-                to=[self.customer.user.email],
-                from_email=INVOICE_FROM_EMAIL
-            ).send()
+            if INVOICE_EMAIL_FUNCTION:
+                INVOICE_EMAIL_FUNCTION(self, self.customer.user.email)
+            else:
+                site = Site.objects.get_current()
+                protocol = getattr(settings, "DEFAULT_HTTP_PROTOCOL", "http")
+                ctx = {
+                    "charge": self,
+                    "site": site,
+                    "protocol": protocol,
+                }
+                subject = render_to_string("djstripe/email/subject.txt", ctx)
+                subject = subject.strip()
+                message = render_to_string("djstripe/email/body.txt", ctx)
+                num_sent = EmailMessage(
+                    subject,
+                    message,
+                    to=[self.customer.user.email],
+                    from_email=INVOICE_FROM_EMAIL
+                ).send()
             self.receipt_sent = num_sent > 0
             self.save()
 
